@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   cancelButton: {
     position: 'absolute',
     top: 20,
-    left: 20,
+    right: 20,
     backgroundColor: 'rgba(255,255,255,0.3)',
     width: 32,
     height: 32,
