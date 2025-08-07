@@ -41,7 +41,7 @@ export default function CameraView() {
     requestPermission();
   }, []);
 
-  // ✅ Focus mode activation/deactivation based on option selected
+  //  Focus mode activation/deactivation based on option selected
   useEffect(() => {
     if (selectedOption !== 'Focus Object') {
       setManualFocusMode(false);
