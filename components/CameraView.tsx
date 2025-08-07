@@ -31,15 +31,26 @@ export default function CameraView() {
   const [labels, setLabels] = useState<string[]>([]);
   const [translatedLabel, setTranslatedLabel] = useState('');
   const [showGerman, setShowGerman] = useState(false);
-  const [selectedOption, setSelectedOption] = useState<string>(options[0]);
+  const [selectedOption, setSelectedOption] = useState<string>('');
 
-  // Focus drawing
   const [focusRect, setFocusRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [manualFocusMode, setManualFocusMode] = useState(false);
 
   useEffect(() => {
     requestPermission();
   }, []);
+
+  // ✅ Focus mode activation/deactivation based on option selected
+  useEffect(() => {
+    if (selectedOption !== 'Focus Object') {
+      setManualFocusMode(false);
+      setFocusRect(null);
+      setStartPoint(null);
+    } else {
+      setManualFocusMode(true);
+    }
+  }, [selectedOption]);
 
   const takePhoto = async () => {
     if (!camera.current) return;
@@ -67,13 +78,12 @@ export default function CameraView() {
     setShowGerman(false);
     setFocusRect(null);
     setStartPoint(null);
+    setManualFocusMode(false);
+    setSelectedOption('');
   };
 
   const handleFocusScan = async () => {
     if (!capturedPhoto || !focusRect) return;
-
-    const imageWidth = SCREEN_WIDTH;
-    const imageHeight = SCREEN_HEIGHT;
 
     const cropRegion = {
       x: Math.max(Math.floor(focusRect.x), 0),
@@ -90,6 +100,7 @@ export default function CameraView() {
 
       const croppedLabels = await labelImage(croppedPath);
       setLabels(croppedLabels);
+      setManualFocusMode(false);
     } catch (err) {
       console.error('Crop or label error:', err);
     }
@@ -118,13 +129,15 @@ export default function CameraView() {
         <>
           <View
             style={StyleSheet.absoluteFill}
-            onStartShouldSetResponder={() => true}
+            onStartShouldSetResponder={() => selectedOption === 'Focus Object'}
             onResponderGrant={(e) => {
+              if (selectedOption !== 'Focus Object') return;
               const { locationX, locationY } = e.nativeEvent;
               setStartPoint({ x: locationX, y: locationY });
+              setManualFocusMode(true);
             }}
             onResponderMove={(e) => {
-              if (!startPoint) return;
+              if (!startPoint || selectedOption !== 'Focus Object') return;
               const { locationX, locationY } = e.nativeEvent;
               setFocusRect({
                 x: startPoint.x,
@@ -132,9 +145,6 @@ export default function CameraView() {
                 width: locationX - startPoint.x,
                 height: locationY - startPoint.y,
               });
-            }}
-            onResponderRelease={() => {
-              // You can auto-scan here or wait for a button click
             }}
           >
             <Image source={{ uri: 'file://' + capturedPhoto.path }} style={StyleSheet.absoluteFill} />
@@ -154,33 +164,35 @@ export default function CameraView() {
             )}
           </View>
 
-          {/* Cancel (X) Button */}
+          {/* Cancel Button */}
           <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
             <Text style={styles.cancelText}>×</Text>
           </TouchableOpacity>
 
-          {/* Translate / Label View */}
-          <View style={styles.labelConnectorContainer}>
-            <TouchableOpacity style={styles.startButton} onPress={handleToggleTranslation}>
-              <Text style={styles.startButtonText}>
-                {showGerman ? 'English' : 'Check German'}
-              </Text>
-            </TouchableOpacity>
-            <View style={styles.dot} />
-            <View style={styles.line} />
-            <View style={styles.labelBox}>
-              <Text style={styles.labelBoxText}>
-                {showGerman
-                  ? `Translated: ${translatedLabel || '...'}`
-                  : labels.length > 0
-                  ? labels[0]
-                  : 'Labeling...'}
-              </Text>
+          {/* Labels + Translation (only if not in focus mode) */}
+          {!manualFocusMode && (
+            <View style={styles.labelConnectorContainer}>
+              <TouchableOpacity style={styles.startButton} onPress={handleToggleTranslation}>
+                <Text style={styles.startButtonText}>
+                  {showGerman ? 'English' : 'Check German'}
+                </Text>
+              </TouchableOpacity>
+              <View style={styles.dot} />
+              <View style={styles.line} />
+              <View style={styles.labelBox}>
+                <Text style={styles.labelBoxText}>
+                  {showGerman
+                    ? `Translated: ${translatedLabel || '...'}`
+                    : labels.length > 0
+                    ? labels[0]
+                    : 'Labeling...'}
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Scan Area Button */}
-          {focusRect && (
+          {focusRect && selectedOption === 'Focus Object' && (
             <TouchableOpacity style={styles.scanButton} onPress={handleFocusScan}>
               <Text style={styles.scanButtonText}>Scan Area</Text>
             </TouchableOpacity>
@@ -188,7 +200,7 @@ export default function CameraView() {
         </>
       )}
 
-      {/* Circular Option Slider */}
+      {/* Option Slider */}
       <View style={styles.circularSlider}>
         <ScrollView
           horizontal
@@ -202,7 +214,13 @@ export default function CameraView() {
                 styles.optionBubble,
                 selectedOption === opt && styles.selectedBubble,
               ]}
-              onPress={() => setSelectedOption(opt)}
+              onPress={() => {
+                if (opt === 'Focus Object') {
+                  setSelectedOption(selectedOption === 'Focus Object' ? '' : 'Focus Object');
+                } else {
+                  setSelectedOption(opt);
+                }
+              }}
             >
               <Text style={styles.optionText}>{opt}</Text>
             </TouchableOpacity>
@@ -214,10 +232,7 @@ export default function CameraView() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
+  container: { flex: 1, backgroundColor: '#000' },
   message: {
     color: '#fff',
     textAlign: 'center',
